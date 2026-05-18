@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* =========================
+       HELPER FUNCTIONS
+    ========================== */
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Checks the "badge" (Custom Claim) assigned by your Cloud Function
+    function roleIs(role) {
+      return isSignedIn() && request.auth.token.role == role;
+    }
+
+    // Ensures the user's schoolId matches the data path they are trying to access
+    function schoolMatches(schoolId) {
+      return isSignedIn() && request.auth.token.schoolId == schoolId;
+    }
+
+    function isSystemAdmin() {
+      return roleIs("admin");
+    }
+
+    function isSchoolAdmin(schoolId) {
+      return roleIs("school") && schoolMatches(schoolId);
+    }
+
+    function isTeacher(schoolId, teacherId) {
+      return roleIs("teacher") && 
+             schoolMatches(schoolId) && 
+             request.auth.uid == teacherId;
+    }
+
+    function isStudent(schoolId, studentId) {
+      return roleIs("student") && 
+             schoolMatches(schoolId) && 
+             request.auth.uid == studentId;
+    }
+
+    /* =========================
+       SYSTEM ADMIN SECTION
+    ========================== */
+
+    match /system_admin/{adminId} {
+      allow read, write: if isSystemAdmin() && request.auth.uid == adminId;
+    }
+
+    /* =========================
+       SCHOOLS HIERARCHY
+    ========================== */
+
+    match /schools/{schoolId} {
+      
+      // School Admins can see their school data, System Admins see all
+      allow read: if isSystemAdmin() || isSchoolAdmin(schoolId);
+      allow write: if isSystemAdmin();
+
+      // School basic info (Address, Name, etc.)
+      match /info/{docId} {
+        allow read, write: if isSystemAdmin() || isSchoolAdmin(schoolId);
+      }
+
+      /* ===== TEACHERS SECTION ===== */
+      match /teachers/{teacherId} {
+        
+        allow read, write: if isSystemAdmin() || 
+                             isSchoolAdmin(schoolId) || 
+                             isTeacher(schoolId, teacherId);
+
+        // Classrooms under a specific teacher
+        match /classrooms/{classId} {
+          allow read, write: if isSystemAdmin() || 
+                               isSchoolAdmin(schoolId) || 
+                               isTeacher(schoolId, teacherId);
+
+          // Links connecting students to this teacher's class
+          match /studentLinks/{studentId} {
+            allow read: if isSystemAdmin() || isSchoolAdmin(schoolId) || isTeacher(schoolId, teacherId);
+            allow create, delete: if isSystemAdmin() || isSchoolAdmin(schoolId) || isTeacher(schoolId, teacherId);
+            allow update: if false; 
+          }
+        }
+
+        /* ===== AI GENERATED CONTENT ===== */
+        // This is where your Lesson Plans, Notes, and Assessments go
+        match /generated_plans/{grade}/plans/{planId} {
+          allow read, write: if isSystemAdmin() || 
+                               isSchoolAdmin(schoolId) || 
+                               isTeacher(schoolId, teacherId);
+        }
+      }
+
+      /* ===== STUDENTS SECTION ===== */
+      match /students/{studentId} {
+        
+        allow read, write: if isSystemAdmin() || 
+                             isSchoolAdmin(schoolId) || 
+                             isStudent(schoolId, studentId);
+
+        // Students' personal notes (Private even from Admins)
+        match /notes/{noteId} {
+          allow read, write: if isStudent(schoolId, studentId);
+        }
+
+        // Test attempts/Assessments
+        match /attemptedCats/{attemptId} {
+          allow read, write: if isSystemAdmin() || 
+                               isSchoolAdmin(schoolId) || 
+                               isStudent(schoolId, studentId);
+        }
+      }
+    }
+
+    /* =========================
+       GLOBAL SAFETY LOCK
+    ========================== */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
