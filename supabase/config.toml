@@ -1,0 +1,34 @@
+project_id = "xmsqlccjlxrexinpwzos"
+
+[functions.generate-lesson]
+verify_jwt = false
+
+[functions.generate-lesson-notes]
+verify_jwt = false
+
+[functions.generate-pretech-lesson]
+verify_jwt = false
+
+[functions.generate-science-lesson]
+verify_jwt = false
+
+[functions.generate-social-studies-lesson]
+verify_jwt = false
+
+[functions.generate-agriculture-lesson]
+verify_jwt = false
+
+[functions.generate-cre-lesson]
+verify_jwt = false
+
+[functions.generate-kiswahili-lesson]
+verify_jwt = false
+
+[functions.generate-english-lesson]
+verify_jwt = false
+
+[functions.generate-quiz]
+verify_jwt = false
+
+[functions.chat]
+verify_jwt = false
